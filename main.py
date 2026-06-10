@@ -8,7 +8,7 @@ import llm_parser
 import router
 import sheets_client
 from config import get_settings
-from models import DealFields, WebhookPayload
+from models import DealFields
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,18 +26,11 @@ def health():
 
 
 @app.post("/webhook")
-def handle_webhook(
-    token: str = Query(None),
-    deal_id: str = Query(None),
-    payload: WebhookPayload = None,
-):
+def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
     # ── Проверка токена ────────────────────────────────────────────────────────
     if token != settings.BITRIX_INCOMING_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid token")
 
-    # deal_id может прийти либо из query-параметра (Bitrix робот), либо из тела
-    if not deal_id and payload:
-        deal_id = payload.deal_id
     if not deal_id:
         raise HTTPException(status_code=400, detail="deal_id is required")
     deal_id = deal_id.strip()
