@@ -25,6 +25,36 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/debug")
+def debug():
+    import json
+    result = {}
+    s = get_settings()
+
+    result["sheets_id"] = s.GOOGLE_SHEETS_ID[:20] + "..." if s.GOOGLE_SHEETS_ID else "NOT SET"
+    result["field_category"] = s.FIELD_CATEGORY
+    result["field_machine"] = s.FIELD_MACHINE_TYPE
+    result["target_stage"] = s.TARGET_STAGE_ID
+
+    try:
+        creds_raw = s.GOOGLE_CREDENTIALS_JSON.strip()
+        creds = json.loads(creds_raw)
+        result["creds_type"] = creds.get("type")
+        result["creds_email"] = creds.get("client_email")
+    except Exception as e:
+        result["creds_error"] = str(e)
+
+    try:
+        partners = sheets_client.get_partners()
+        result["sheets_ok"] = True
+        result["partners_count"] = len(partners)
+    except Exception as e:
+        result["sheets_ok"] = False
+        result["sheets_error"] = str(e)
+
+    return result
+
+
 @app.post("/webhook")
 def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
     # ── Проверка токена ────────────────────────────────────────────────────────
