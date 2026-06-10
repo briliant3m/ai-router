@@ -26,14 +26,21 @@ def health():
 
 
 @app.post("/webhook")
-def handle_webhook(payload: WebhookPayload, token: str = Query(None)):
+def handle_webhook(
+    token: str = Query(None),
+    deal_id: str = Query(None),
+    payload: WebhookPayload = None,
+):
     # ── Проверка токена ────────────────────────────────────────────────────────
     if token != settings.BITRIX_INCOMING_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid token")
 
-    deal_id = payload.deal_id.strip()
+    # deal_id может прийти либо из query-параметра (Bitrix робот), либо из тела
+    if not deal_id and payload:
+        deal_id = payload.deal_id
     if not deal_id:
         raise HTTPException(status_code=400, detail="deal_id is required")
+    deal_id = deal_id.strip()
 
     logger.info(f"=== Processing deal {deal_id} ===")
 
