@@ -8,7 +8,7 @@ settings = get_settings()
 
 
 def _call(method: str, params: dict) -> Any:
-    url = f"{settings.BITRIX_WEBHOOK_URL.rstrip('/')}/{method}"
+    url = f"{settings.BITRIX_WEBHOOK_URL.strip().rstrip('/')}/{method}"
     resp = requests.post(url, json=params, timeout=15)
     resp.raise_for_status()
     data = resp.json()
