@@ -13,6 +13,7 @@ def _send(text: str) -> None:
     token = settings.TELEGRAM_BOT_TOKEN.strip()
     chat_id = settings.TELEGRAM_CHAT_ID.strip()
     if not token or not chat_id:
+        logger.warning(f"Telegram skipped: token={'set' if token else 'EMPTY'}, chat_id={'set' if chat_id else 'EMPTY'}")
         return
     try:
         resp = requests.post(
@@ -21,6 +22,7 @@ def _send(text: str) -> None:
             timeout=10,
         )
         resp.raise_for_status()
+        logger.info("Telegram notification sent")
     except Exception as e:
         logger.warning(f"Telegram notification failed: {e}")
 
