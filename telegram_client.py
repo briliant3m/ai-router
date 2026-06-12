@@ -10,8 +10,8 @@ settings = get_settings()
 
 
 def _send(text: str) -> None:
-    token = settings.TELEGRAM_BOT_TOKEN.strip()
-    chat_id = settings.TELEGRAM_CHAT_ID.strip()
+    token = settings.TG_TOKEN.strip()
+    chat_id = settings.TG_CHAT.strip()
     if not token or not chat_id:
         logger.warning(f"Telegram skipped: token={'set' if token else 'EMPTY'}, chat_id={'set' if chat_id else 'EMPTY'}")
         return
@@ -63,7 +63,7 @@ def notify_no_partner(
     rejection_reasons: Dict[str, str],
     partner_names: Dict[str, str],
 ) -> None:
-    alert_user = settings.TELEGRAM_ALERT_USER.strip()
+    alert_user = settings.TG_USER.strip()
     lines = [
         "⚠️ <b>Лид не распределён!</b>",
     ]

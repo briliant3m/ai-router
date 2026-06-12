@@ -32,9 +32,9 @@ class Settings(BaseSettings):
     SHEETS_CACHE_TTL: int = 300
 
     # Telegram-уведомления (необязательные)
-    TELEGRAM_BOT_TOKEN: str = ""
-    TELEGRAM_CHAT_ID: str = ""
-    TELEGRAM_ALERT_USER: str = ""  # например @username — тегается при нераспределённом лиде
+    TG_TOKEN: str = ""
+    TG_CHAT: str = ""
+    TG_USER: str = ""  # например @username — тегается при нераспределённом лиде
 
     class Config:
         env_file = ".env"
