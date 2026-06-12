@@ -62,6 +62,37 @@ def debug_deal(deal_id: str):
     }
 
 
+@app.get("/debug-partners")
+def debug_partners():
+    """Показывает всех активных партнёров с их условиями маршрутизации."""
+    partners = sheets_client.get_partners()
+    equipment_map = sheets_client.get_equipment_map()
+    today_counts = sheets_client.get_today_counts()
+    return {
+        "partners": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "bitrix_stage_id": p.bitrix_stage_id,
+                "categories": p.categories,
+                "regions": p.regions,
+                "max_need_days": p.max_need_days,
+                "daily_quota": p.daily_quota,
+                "roi_score": p.roi_score,
+                "budget_conditions": p.budget_conditions,
+                "special_notes": p.special_notes,
+                "today_count": today_counts.get(p.id, 0),
+            }
+            for p in partners
+        ],
+        "equipment_map_count": len(equipment_map),
+        "equipment_map_sample": [
+            {"category": e.category, "subcategory": e.subcategory, "machine_type": e.machine_type, "partners": e.partners}
+            for e in equipment_map[:10]
+        ],
+    }
+
+
 @app.get("/debug-enums")
 def debug_enums():
     """Показывает enum-значения для поля FIELD_CATEGORY из crm.contact.fields."""
