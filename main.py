@@ -28,24 +28,38 @@ def health():
 
 @app.get("/debug-deal/{deal_id}")
 def debug_deal(deal_id: str):
-    """Показывает все UF_CRM поля сделки — для диагностики field ID."""
-    raw = bitrix_client.get_deal(deal_id)
-    uf_fields = {k: v for k, v in raw.items() if k.startswith("UF_")}
-    expected = {
-        "FIELD_CATEGORY": settings.FIELD_CATEGORY,
-        "FIELD_MACHINE_TYPE": settings.FIELD_MACHINE_TYPE,
-        "FIELD_BUDGET": settings.FIELD_BUDGET,
-        "FIELD_TIMELINE": settings.FIELD_TIMELINE,
-        "FIELD_REGION": settings.FIELD_REGION,
-        "values_from_deal": {
-            settings.FIELD_CATEGORY: raw.get(settings.FIELD_CATEGORY),
-            settings.FIELD_MACHINE_TYPE: raw.get(settings.FIELD_MACHINE_TYPE),
-            settings.FIELD_BUDGET: raw.get(settings.FIELD_BUDGET),
-            settings.FIELD_TIMELINE: raw.get(settings.FIELD_TIMELINE),
-            settings.FIELD_REGION: raw.get(settings.FIELD_REGION),
-        }
+    """Показывает все UF_CRM поля сделки + связанного контакта/компании."""
+    deal_raw = bitrix_client.get_deal(deal_id)
+    enriched = bitrix_client.get_deal_enriched(deal_id)
+
+    deal_uf = {k: v for k, v in deal_raw.items() if k.startswith("UF_") and v not in ("", None, False, "0")}
+    enriched_uf = {k: v for k, v in enriched.items() if k.startswith("UF_") and v not in ("", None, False, "0")}
+
+    contact_id = deal_raw.get("CONTACT_ID")
+    company_id = deal_raw.get("COMPANY_ID")
+
+    return {
+        "deal_id": deal_id,
+        "title": deal_raw.get("TITLE"),
+        "contact_id": contact_id,
+        "company_id": company_id,
+        "non_empty_uf_from_deal_only": deal_uf,
+        "non_empty_uf_enriched": enriched_uf,
+        "configured_fields": {
+            "FIELD_CATEGORY": settings.FIELD_CATEGORY,
+            "FIELD_MACHINE_TYPE": settings.FIELD_MACHINE_TYPE,
+            "FIELD_BUDGET": settings.FIELD_BUDGET,
+            "FIELD_TIMELINE": settings.FIELD_TIMELINE,
+            "FIELD_REGION": settings.FIELD_REGION,
+        },
+        "values_resolved": {
+            "category": enriched.get(settings.FIELD_CATEGORY),
+            "machine_type": enriched.get(settings.FIELD_MACHINE_TYPE),
+            "budget": enriched.get(settings.FIELD_BUDGET),
+            "timeline": enriched.get(settings.FIELD_TIMELINE),
+            "region": enriched.get(settings.FIELD_REGION),
+        },
     }
-    return {"deal_id": deal_id, "title": raw.get("TITLE"), "uf_fields": uf_fields, "expected": expected}
 
 
 @app.get("/debug")
@@ -91,8 +105,8 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
     logger.info(f"=== Processing deal {deal_id} ===")
 
     try:
-        # ── 1. Получаем данные сделки из Bitrix ───────────────────────────────
-        raw = bitrix_client.get_deal(deal_id)
+        # ── 1. Получаем данные сделки + UF-поля из контакта/компании ─────────
+        raw = bitrix_client.get_deal_enriched(deal_id)
         deal = DealFields(
             id=deal_id,
             title=raw.get("TITLE"),
