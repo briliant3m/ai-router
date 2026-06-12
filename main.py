@@ -62,6 +62,22 @@ def debug_deal(deal_id: str):
     }
 
 
+@app.get("/debug-enums")
+def debug_enums():
+    """Показывает enum-значения для поля FIELD_CATEGORY из crm.contact.fields."""
+    raw_fields = bitrix_client._call("crm.contact.fields", {})
+    field_id = settings.FIELD_CATEGORY
+    field_def = raw_fields.get(field_id, "NOT FOUND")
+    # Показываем первые 5 полей для понимания структуры
+    sample = {k: v for i, (k, v) in enumerate(raw_fields.items()) if k.startswith("UF_") and i < 5}
+    return {
+        "field_id": field_id,
+        "field_def": field_def,
+        "sample_uf_fields": sample,
+        "enum_cache": bitrix_client._get_contact_enums().get(field_id, "EMPTY"),
+    }
+
+
 @app.get("/debug")
 def debug():
     import json
