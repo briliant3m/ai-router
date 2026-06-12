@@ -7,6 +7,7 @@ import bitrix_client
 import llm_parser
 import router
 import sheets_client
+import telegram_client
 from config import get_settings
 from models import DealFields
 
@@ -72,6 +73,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
         raw = bitrix_client.get_deal(deal_id)
         deal = DealFields(
             id=deal_id,
+            title=raw.get("TITLE"),
             category=raw.get(settings.FIELD_CATEGORY),
             machine_type=raw.get(settings.FIELD_MACHINE_TYPE),
             budget_text=raw.get(settings.FIELD_BUDGET),
@@ -125,6 +127,18 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             bitrix_client.update_deal(deal_id, update_fields)
             sheets_client.increment_count(partner.id)
 
+            today_total = sum(sheets_client.get_today_counts().values())
+            telegram_client.notify_routed(
+                deal_id=deal_id,
+                deal_title=deal.title or "",
+                partner_name=partner.name,
+                subcategory=parsed.subcategory,
+                budget_rub=parsed.budget_rub,
+                need_days=parsed.need_days,
+                region=deal.region,
+                today_total=today_total,
+            )
+
             parts = [f"Лид передан партнёру: {partner.name}"]
             if parsed.subcategory:
                 parts.append(f"Подкатегория: {parsed.subcategory}")
@@ -156,6 +170,18 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
                 lines.append(f"\nПримечания парсера: {parsed.parse_notes}")
 
             bitrix_client.add_timeline_comment(deal_id, "🤖 AI Роутер\n" + "\n".join(lines))
+
+            partner_names = {p.id: p.name for p in partners}
+            telegram_client.notify_no_partner(
+                deal_id=deal_id,
+                deal_title=deal.title or "",
+                subcategory=parsed.subcategory,
+                budget_rub=parsed.budget_rub,
+                region=deal.region,
+                rejection_reasons=result.rejection_reasons,
+                partner_names=partner_names,
+            )
+
             logger.warning(f"Deal {deal_id}: no partner found. Reasons: {result.rejection_reasons}")
             return JSONResponse({"status": "no_partner", "reasons": result.rejection_reasons})
 

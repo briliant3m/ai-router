@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 class DealFields(BaseModel):
     id: str
+    title: Optional[str] = None
     category: Optional[str] = None
     machine_type: Optional[str] = None
     budget_text: Optional[str] = None
