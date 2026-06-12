@@ -83,8 +83,11 @@ def get_deal_enriched(deal_id: str) -> dict:
         except Exception as e:
             logger.warning(f"Could not fetch contact {contact_id}: {e}")
 
-    # Поля сделки перекрывают всё
-    merged_uf.update(deal)
+    # Стандартные поля сделки — всегда. UF-поля сделки — только если непустые
+    # (иначе null из сделки затирает реальное значение из контакта)
+    for k, v in deal.items():
+        if not k.startswith("UF_") or v not in (None, "", [], False):
+            merged_uf[k] = v
 
     # Переводим числовые ID enum-полей в текст (например "250" → "Металлообработка")
     enums = _get_contact_enums()
