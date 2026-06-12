@@ -30,8 +30,22 @@ def health():
 def debug_deal(deal_id: str):
     """Показывает все UF_CRM поля сделки — для диагностики field ID."""
     raw = bitrix_client.get_deal(deal_id)
-    uf_fields = {k: v for k, v in raw.items() if k.startswith("UF_") and v not in (None, "", "0", False)}
-    return {"deal_id": deal_id, "title": raw.get("TITLE"), "uf_fields": uf_fields}
+    uf_fields = {k: v for k, v in raw.items() if k.startswith("UF_")}
+    expected = {
+        "FIELD_CATEGORY": settings.FIELD_CATEGORY,
+        "FIELD_MACHINE_TYPE": settings.FIELD_MACHINE_TYPE,
+        "FIELD_BUDGET": settings.FIELD_BUDGET,
+        "FIELD_TIMELINE": settings.FIELD_TIMELINE,
+        "FIELD_REGION": settings.FIELD_REGION,
+        "values_from_deal": {
+            settings.FIELD_CATEGORY: raw.get(settings.FIELD_CATEGORY),
+            settings.FIELD_MACHINE_TYPE: raw.get(settings.FIELD_MACHINE_TYPE),
+            settings.FIELD_BUDGET: raw.get(settings.FIELD_BUDGET),
+            settings.FIELD_TIMELINE: raw.get(settings.FIELD_TIMELINE),
+            settings.FIELD_REGION: raw.get(settings.FIELD_REGION),
+        }
+    }
+    return {"deal_id": deal_id, "title": raw.get("TITLE"), "uf_fields": uf_fields, "expected": expected}
 
 
 @app.get("/debug")
