@@ -26,6 +26,14 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/debug-deal/{deal_id}")
+def debug_deal(deal_id: str):
+    """Показывает все UF_CRM поля сделки — для диагностики field ID."""
+    raw = bitrix_client.get_deal(deal_id)
+    uf_fields = {k: v for k, v in raw.items() if k.startswith("UF_") and v not in (None, "", "0", False)}
+    return {"deal_id": deal_id, "title": raw.get("TITLE"), "uf_fields": uf_fields}
+
+
 @app.get("/debug")
 def debug():
     import json
