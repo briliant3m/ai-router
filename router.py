@@ -94,11 +94,12 @@ def select_partner(
                 continue
 
         # ── 6. Бюджет (оценка Claude) ─────────────────────────────────────────
-        budget_ok = parsed.eligible_by_budget.get(pid)
-        if budget_ok is False:
-            rejection_reasons[pid] = "бюджет ниже минимального порога партнёра"
-            continue
-        # None = бюджет неизвестен → продолжаем (потенциально подходит)
+        # Если бюджет не указан совсем — не фильтруем, передаём всем подходящим
+        if parsed.budget_rub is not None:
+            budget_ok = parsed.eligible_by_budget.get(pid)
+            if budget_ok is False:
+                rejection_reasons[pid] = "бюджет ниже минимального порога партнёра"
+                continue
 
         # ── 7. Дневная квота ──────────────────────────────────────────────────
         today_count = today_counts.get(pid, 0)
@@ -108,22 +109,21 @@ def select_partner(
             )
             continue
 
-        fill_ratio = today_count / partner.daily_quota
-        candidates.append((partner, fill_ratio))
-        logger.debug(f"Candidate: {pid}, fill_ratio={fill_ratio:.3f}")
+        candidates.append((partner, today_count))
+        logger.debug(f"Candidate: {pid}, today_count={today_count}")
 
     if not candidates:
         logger.warning(f"Deal {deal.id}: no eligible partner found")
         return RoutingResult(rejection_reasons=rejection_reasons, parsed_deal=parsed)
 
-    # Выбираем партнёра с наименьшим fill_ratio (пропорциональное распределение).
+    # Round-robin: выбираем партнёра с наименьшим количеством лидов сегодня.
     # При равенстве — по порядку строки в таблице (row_index).
-    candidates.sort(key=lambda x: (round(x[1], 4), x[0].row_index))
+    candidates.sort(key=lambda x: (x[1], x[0].row_index))
     selected = candidates[0][0]
 
     logger.info(
         f"Deal {deal.id} → {selected.id} ({selected.name}), "
-        f"fill_ratio={candidates[0][1]:.3f}, {len(candidates)} candidates"
+        f"today_count={candidates[0][1]}, {len(candidates)} candidates"
     )
     return RoutingResult(
         selected_partner=selected,
