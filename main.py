@@ -127,7 +127,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             bitrix_client.update_deal(deal_id, update_fields)
             sheets_client.increment_count(partner.id)
 
-            today_total = sum(sheets_client.get_today_counts().values())
+            today_total = sum(today_counts.values()) + 1
             telegram_client.notify_routed(
                 deal_id=deal_id,
                 deal_title=deal.title or "",
