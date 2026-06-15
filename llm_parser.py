@@ -50,6 +50,7 @@ def parse_deal(
     region: Optional[str],
     partners: List[Partner],
     equipment_map: List[EquipmentEntry],
+    extra_comment: Optional[str] = None,
 ) -> ParsedDeal:
     active_partner_ids = [p.id for p in partners if p.daily_quota != 0]
 
@@ -64,6 +65,7 @@ def parse_deal(
 - Бюджет: {budget_text or "не указан"}
 - Срок потребности: {timeline_text or "не указан"}
 - Регион: {region or "не указан"}
+- Доп. комментарий оператора: {extra_comment or "не указан"}
 
 ---
 КАТАЛОГ ОБОРУДОВАНИЯ (найди точное совпадение для «Вид станка»):
@@ -93,6 +95,7 @@ def parse_deal(
 - budget_rub: "2 млн" → 2000000, "700 тыс" → 700000, "примерно 1.5 млн" → 1500000. Если совсем неизвестно — null (не 0).
 - need_days: для диапазонов используй ВЕРХНЮЮ границу: "2–3 месяца" → 90, "3–4 месяца" → 120, "4–6 месяцев" → 180, "6 мес" → 180, "в ближайшее время" → 30, "без ограничений" → null.
 - is_edm: true если станок электроэрозионный / EDM / проволочный / эрозия / прожиг отверстий.
+- Доп. комментарий оператора учитывай при определении machine_type_id, subcategories, budget_rub, need_days и is_edm — там может уточняться тип станка, бюджет или срок. Отражай важные наблюдения в parse_notes.
 - eligible_by_budget:
     true  — бюджет из заявки точно покрывает минимальный порог партнёра для данного типа станка
     false — бюджет явно ниже порога

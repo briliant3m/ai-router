@@ -11,6 +11,7 @@ class DealFields(BaseModel):
     timeline_text: Optional[str] = None
     region: Optional[str] = None
     company: Optional[str] = None
+    extra_comment: Optional[str] = None
 
 
 class ParsedDeal(BaseModel):

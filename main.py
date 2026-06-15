@@ -336,6 +336,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             timeline_text=raw.get(settings.FIELD_TIMELINE),
             region=raw.get(settings.FIELD_REGION),
             company=raw.get(settings.FIELD_COMPANY),
+            extra_comment=raw.get(settings.FIELD_COMMENT),
         )
         logger.info(
             f"Deal {deal_id}: category={deal.category!r}, "
@@ -355,6 +356,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             budget_text=deal.budget_text,
             timeline_text=deal.timeline_text,
             region=deal.region,
+            extra_comment=deal.extra_comment,
             partners=partners,
             equipment_map=equipment_map,
         )
