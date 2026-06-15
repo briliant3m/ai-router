@@ -54,6 +54,12 @@ def notify_routed(
     _send("\n".join(lines))
 
 
+def notify_sheets_changed(changes: list) -> None:
+    lines = ["📋 <b>Изменения в таблице партнёров</b>", ""]
+    lines.extend(changes)
+    _send("\n".join(lines))
+
+
 def notify_no_partner(
     deal_id: str,
     deal_title: str,

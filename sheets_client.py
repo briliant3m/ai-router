@@ -107,6 +107,13 @@ def get_partners() -> List[Partner]:
     return _cached("partners", _fetch_partners)
 
 
+def get_partners_fresh() -> List[Partner]:
+    """Читает партнёров напрямую из Sheets, минуя кэш."""
+    _cache.pop("partners", None)
+    _cache_time.pop("partners", None)
+    return _cached("partners", _fetch_partners)
+
+
 def get_equipment_map() -> List[EquipmentEntry]:
     return _cached("equipment_map", _fetch_equipment_map)
 

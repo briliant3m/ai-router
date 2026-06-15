@@ -1,4 +1,7 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager
+from typing import Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -9,7 +12,7 @@ import router
 import sheets_client
 import telegram_client
 from config import get_settings
-from models import DealFields
+from models import DealFields, Partner
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,12 +21,110 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-app = FastAPI(title="Bitrix AI Router")
+# ── Мониторинг изменений в Google Sheets ──────────────────────────────────────
+
+_TRACKED_FIELDS = ["budget_conditions", "special_notes", "daily_quota", "max_need_days"]
+_partners_snapshot: Optional[Dict[str, dict]] = None
+
+
+def _partner_snapshot(p: Partner) -> dict:
+    return {
+        "budget_conditions": p.budget_conditions,
+        "special_notes": p.special_notes,
+        "daily_quota": p.daily_quota,
+        "max_need_days": p.max_need_days,
+        "regions": sorted(p.regions),
+        "categories": sorted(p.categories),
+    }
+
+
+def _check_and_notify() -> list:
+    global _partners_snapshot
+
+    partners = sheets_client.get_partners_fresh()
+    current: Dict[str, dict] = {p.id: _partner_snapshot(p) for p in partners}
+    current_names: Dict[str, str] = {p.id: p.name for p in partners}
+
+    if _partners_snapshot is None:
+        _partners_snapshot = current
+        logger.info("Partners snapshot initialized")
+        return []
+
+    changes = []
+
+    # Новые партнёры
+    for pid in current:
+        if pid not in _partners_snapshot:
+            changes.append(f"➕ <b>{current_names[pid]}</b> — добавлен")
+
+    # Удалённые партнёры
+    for pid in _partners_snapshot:
+        if pid not in current:
+            changes.append(f"➖ <b>{pid}</b> — удалён")
+
+    # Изменения у существующих
+    labels = {
+        "budget_conditions": "Бюджетные условия",
+        "special_notes": "Примечания",
+        "daily_quota": "Дневная квота",
+        "max_need_days": "Макс. срок (дней)",
+        "regions": "Регионы",
+        "categories": "Категории",
+    }
+    for pid, snap in current.items():
+        if pid not in _partners_snapshot:
+            continue
+        old = _partners_snapshot[pid]
+        partner_changes = []
+        for field, label in labels.items():
+            if snap[field] != old[field]:
+                partner_changes.append(f"  • {label}: <i>{old[field]}</i> → <i>{snap[field]}</i>")
+        if partner_changes:
+            changes.append(f"\n<b>{current_names[pid]}</b>:")
+            changes.extend(partner_changes)
+
+    _partners_snapshot = current
+
+    if changes:
+        logger.info(f"Sheets changes detected: {len(changes)} items")
+        telegram_client.notify_sheets_changed(changes)
+    else:
+        logger.info("Sheets check: no changes")
+
+    return changes
+
+
+async def _monitor_loop():
+    await asyncio.sleep(60)  # дать серверу время запуститься
+    while True:
+        try:
+            _check_and_notify()
+        except Exception as e:
+            logger.error(f"Sheets monitor error: {e}")
+        await asyncio.sleep(600)  # 10 минут
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(_monitor_loop())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="Bitrix AI Router", lifespan=lifespan)
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/check-changes")
+def check_changes(token: str = Query(None)):
+    if token != settings.BITRIX_INCOMING_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid token")
+    changes = _check_and_notify()
+    return {"changes_found": len(changes) > 0, "changes": changes}
 
 
 @app.get("/debug-deal/{deal_id}")
