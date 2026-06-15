@@ -299,6 +299,13 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
     try:
         # ── 1. Получаем данные сделки + UF-поля из контакта/компании ─────────
         raw = bitrix_client.get_deal_enriched(deal_id)
+
+        # Идемпотентность: если сделка уже ушла из целевой стадии — пропускаем
+        # (защита от повторных Bitrix-ретраев при рестарте сервера)
+        current_stage = raw.get("STAGE_ID")
+        if current_stage != settings.TARGET_STAGE_ID:
+            logger.info(f"Deal {deal_id} is on stage {current_stage!r}, not target {settings.TARGET_STAGE_ID!r} — skipping")
+            return JSONResponse({"status": "skipped", "reason": "already_processed", "stage": current_stage})
         contact_id = raw.get("CONTACT_ID")
         deal = DealFields(
             id=deal_id,
@@ -368,7 +375,9 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
                     logger.warning(f"Could not update contact subcategory: {e}")
             sheets_client.increment_count(partner.id)
 
-            today_total = sum(today_counts.values()) + 1
+            # Читаем свежие счётчики после инкремента — для точного итога
+            fresh_counts = sheets_client.get_today_counts()
+            today_total = sum(fresh_counts.values())
             telegram_client.notify_routed(
                 deal_id=deal_id,
                 deal_title=deal.title or "",

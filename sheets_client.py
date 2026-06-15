@@ -141,17 +141,26 @@ def increment_count(partner_id: str) -> None:
         all_rows = ws.get_all_values()
         today = str(date.today())
 
+        # Если лист пустой — создаём заголовки и первую строку
         if not all_rows:
+            ws.append_row(["partner_id", "date", "count"])
             ws.append_row([partner_id, today, 1])
+            logger.info(f"daily_counts: initialized sheet, {partner_id} = 1 on {today}")
             return
+
+        # Если первая строка не является заголовками — вставляем их перед данными
+        if "partner_id" not in all_rows[0]:
+            logger.warning(f"daily_counts: first row has no headers ({all_rows[0][:3]}), inserting header row")
+            ws.insert_row(["partner_id", "date", "count"], index=1)
+            all_rows = ws.get_all_values()
 
         headers = all_rows[0]
         try:
             id_col = headers.index("partner_id")
             date_col = headers.index("date")
             count_col = headers.index("count")
-        except ValueError:
-            logger.error("daily_counts: missing required column headers")
+        except ValueError as e:
+            logger.error(f"daily_counts: unexpected headers {headers}: {e}")
             return
 
         for row_i, row in enumerate(all_rows[1:], start=2):
