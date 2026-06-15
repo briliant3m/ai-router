@@ -10,6 +10,7 @@ class DealFields(BaseModel):
     budget_text: Optional[str] = None
     timeline_text: Optional[str] = None
     region: Optional[str] = None
+    company: Optional[str] = None
 
 
 class ParsedDeal(BaseModel):

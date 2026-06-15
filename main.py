@@ -308,6 +308,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             budget_text=raw.get(settings.FIELD_BUDGET),
             timeline_text=raw.get(settings.FIELD_TIMELINE),
             region=raw.get(settings.FIELD_REGION),
+            company=raw.get(settings.FIELD_COMPANY),
         )
         logger.info(
             f"Deal {deal_id}: category={deal.category!r}, "
@@ -372,6 +373,9 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
                 deal_id=deal_id,
                 deal_title=deal.title or "",
                 partner_name=partner.name,
+                category=deal.category,
+                machine_type=deal.machine_type,
+                company=deal.company,
                 subcategories=parsed.subcategories,
                 budget_rub=parsed.budget_rub,
                 need_days=parsed.need_days,
@@ -415,6 +419,9 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             telegram_client.notify_no_partner(
                 deal_id=deal_id,
                 deal_title=deal.title or "",
+                category=deal.category,
+                machine_type=deal.machine_type,
+                company=deal.company,
                 subcategories=parsed.subcategories,
                 budget_rub=parsed.budget_rub,
                 region=deal.region,

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     FIELD_TIMELINE: str
     FIELD_REGION: str
     FIELD_SUBCATEGORY: str  # поле, куда агент записывает нормализованную подкатегорию
+    FIELD_COMPANY: str = "UF_CRM_1781532376767"  # Станки | Компания (на контакте)
 
     # Anthropic
     ANTHROPIC_API_KEY: str

@@ -36,15 +36,22 @@ def notify_routed(
     need_days: Optional[int],
     region: Optional[str],
     today_total: int,
+    category: Optional[str] = None,
+    machine_type: Optional[str] = None,
+    company: Optional[str] = None,
 ) -> None:
     lines = [
         "✅ <b>Лид распределён</b>",
         f"Сделка: #{deal_id}  {deal_title or ''}".strip(),
     ]
-    if subcategories:
-        lines.append(f"Вид станка: {', '.join(subcategories)}")
+    if company:
+        lines.append(f"Компания: {company}")
     if region:
         lines.append(f"Регион: {region}")
+    if category:
+        lines.append(f"Категория: {category}")
+    if machine_type:
+        lines.append(f"Вид станка: {machine_type}")
     if budget_rub:
         lines.append(f"Бюджет: {budget_rub:,} руб.".replace(",", " "))
     if need_days:
@@ -68,6 +75,9 @@ def notify_no_partner(
     region: Optional[str],
     rejection_reasons: Dict[str, str],
     partner_names: Dict[str, str],
+    category: Optional[str] = None,
+    machine_type: Optional[str] = None,
+    company: Optional[str] = None,
 ) -> None:
     alert_user = settings.TG_USER.strip()
     lines = [
@@ -77,10 +87,14 @@ def notify_no_partner(
         lines.append(f"{alert_user}, нужно ручное распределение")
     lines.append("")
     lines.append(f"Сделка: #{deal_id}  {deal_title or ''}".strip())
-    if subcategories:
-        lines.append(f"Вид станка: {', '.join(subcategories)}")
+    if company:
+        lines.append(f"Компания: {company}")
     if region:
         lines.append(f"Регион: {region}")
+    if category:
+        lines.append(f"Категория: {category}")
+    if machine_type:
+        lines.append(f"Вид станка: {machine_type}")
     if budget_rub:
         lines.append(f"Бюджет: {budget_rub:,} руб.".replace(",", " "))
     else:
