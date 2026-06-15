@@ -45,6 +45,26 @@ def _get_contact_enums() -> dict:
     return _enum_cache
 
 
+def subcategory_values_to_ids(field_id: str, text_values: list) -> list:
+    """Конвертирует текстовые значения подкатегории в числовые ID для Bitrix enum-поля.
+    Если маппинг не найден — возвращает текстовые значения как есть (fallback)."""
+    enums = _get_contact_enums()
+    field_enum = enums.get(field_id, {})
+    if not field_enum:
+        logger.warning(f"No enum items found for field {field_id}, passing text values as-is")
+        return text_values
+    # Строим обратный маппинг: текст → ID
+    value_to_id = {v.lower(): k for k, v in field_enum.items()}
+    result = []
+    for text in text_values:
+        item_id = value_to_id.get(text.lower())
+        if item_id:
+            result.append(item_id)
+        else:
+            logger.warning(f"Subcategory value '{text}' not found in field {field_id} enum items")
+    return result or text_values  # fallback если ничего не нашли
+
+
 def get_deal(deal_id: str) -> dict:
     return _call("crm.deal.get", {"id": deal_id})
 
@@ -101,6 +121,11 @@ def get_deal_enriched(deal_id: str) -> dict:
 def update_deal(deal_id: str, fields: dict) -> None:
     _call("crm.deal.update", {"id": deal_id, "fields": fields})
     logger.info(f"Deal {deal_id} updated: {list(fields.keys())}")
+
+
+def update_contact(contact_id: str, fields: dict) -> None:
+    _call("crm.contact.update", {"id": contact_id, "fields": fields})
+    logger.info(f"Contact {contact_id} updated: {list(fields.keys())}")
 
 
 def add_timeline_comment(deal_id: str, comment: str) -> None:

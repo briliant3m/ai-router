@@ -299,6 +299,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
     try:
         # ── 1. Получаем данные сделки + UF-поля из контакта/компании ─────────
         raw = bitrix_client.get_deal_enriched(deal_id)
+        contact_id = raw.get("CONTACT_ID")
         deal = DealFields(
             id=deal_id,
             title=raw.get("TITLE"),
@@ -348,11 +349,22 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
         if result.selected_partner:
             partner = result.selected_partner
 
-            update_fields = {"STAGE_ID": partner.bitrix_stage_id}
-            if parsed.subcategories:
-                update_fields[settings.FIELD_SUBCATEGORY] = parsed.subcategories
+            # Стадию обновляем на сделке
+            bitrix_client.update_deal(deal_id, {"STAGE_ID": partner.bitrix_stage_id})
 
-            bitrix_client.update_deal(deal_id, update_fields)
+            # Подкатегорию пишем в контакт (поле создано на сущности Контакт)
+            if parsed.subcategories and contact_id:
+                try:
+                    ids = bitrix_client.subcategory_values_to_ids(
+                        settings.FIELD_SUBCATEGORY, parsed.subcategories
+                    )
+                    bitrix_client.update_contact(
+                        str(contact_id),
+                        {settings.FIELD_SUBCATEGORY: ids},
+                    )
+                    logger.info(f"Contact {contact_id} subcategory set: {ids}")
+                except Exception as e:
+                    logger.warning(f"Could not update contact subcategory: {e}")
             sheets_client.increment_count(partner.id)
 
             today_total = sum(today_counts.values()) + 1
