@@ -200,13 +200,30 @@ def debug_enums():
     raw_fields = bitrix_client._call("crm.contact.fields", {})
     field_id = settings.FIELD_CATEGORY
     field_def = raw_fields.get(field_id, "NOT FOUND")
-    # Показываем первые 5 полей для понимания структуры
     sample = {k: v for i, (k, v) in enumerate(raw_fields.items()) if k.startswith("UF_") and i < 5}
     return {
         "field_id": field_id,
         "field_def": field_def,
         "sample_uf_fields": sample,
         "enum_cache": bitrix_client._get_contact_enums().get(field_id, "EMPTY"),
+    }
+
+
+@app.get("/debug-subcategory-field")
+def debug_subcategory_field():
+    """Показывает определение поля Подкатегория из crm.deal.fields — нужно для получения ID значений списка."""
+    raw_fields = bitrix_client._call("crm.deal.fields", {})
+    field_id = settings.FIELD_SUBCATEGORY
+    field_def = raw_fields.get(field_id, "NOT FOUND")
+    items = []
+    if isinstance(field_def, dict) and "items" in field_def:
+        items = [{"id": item.get("ID"), "value": item.get("VALUE")} for item in field_def["items"]]
+    return {
+        "field_id": field_id,
+        "field_type": field_def.get("USER_TYPE_ID") if isinstance(field_def, dict) else None,
+        "multiple": field_def.get("MULTIPLE") if isinstance(field_def, dict) else None,
+        "items_count": len(items),
+        "items": items,
     }
 
 
