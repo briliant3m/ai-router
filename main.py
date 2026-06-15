@@ -211,39 +211,46 @@ def debug_enums():
 
 @app.get("/debug-subcategory-field")
 def debug_subcategory_field():
-    """Показывает определение поля Подкатегория — пробует разные API методы."""
+    """Диагностика поля Подкатегория — ищет ID enum-значений всеми доступными методами."""
     field_id = settings.FIELD_SUBCATEGORY
 
-    # Попытка 1: crm.deal.fields
-    deal_fields = bitrix_client._call("crm.deal.fields", {})
-    deal_field_def = deal_fields.get(field_id, "NOT FOUND")
+    # 1. crm.deal.fields без categoryId
+    deal_fields_all = bitrix_client._call("crm.deal.fields", {})
+    in_deal_fields = field_id in deal_fields_all
+    deal_field_def = deal_fields_all.get(field_id)
 
-    # Попытка 2: userfield.get — прямой запрос пользовательского поля
+    # 2. crm.deal.fields с categoryId=12 (воронка C12)
     try:
-        uf_list = bitrix_client._call("crm.userfield.list", {
-            "filter": {"FIELD_NAME": field_id.replace("UF_CRM_", "UF_CRM_")},
-            "select": ["*", "LIST"],
-        })
+        deal_fields_cat = bitrix_client._call("crm.deal.fields", {"categoryId": 12})
+        in_deal_fields_cat12 = field_id in deal_fields_cat
+        deal_field_cat_def = deal_fields_cat.get(field_id)
     except Exception as e:
-        uf_list = str(e)
+        in_deal_fields_cat12 = f"error: {e}"
+        deal_field_cat_def = None
 
-    # Попытка 3: userfieldtype — ищем поле по entity и field_name
+    # 3. Все UF поля сделки категории 12 с "LIST" в ключах (ищем поля-списки)
+    uf_list_fields = {
+        k: v for k, v in (deal_fields_cat if isinstance(deal_fields_cat, dict) else {}).items()
+        if k.startswith("UF_") and isinstance(v, dict) and v.get("USER_TYPE_ID") == "enumeration"
+    }
+
+    # 4. crm.deal.get на тестовой сделке — смотрим сырое значение поля
     try:
-        uf_by_entity = bitrix_client._call("crm.userfield.list", {
-            "filter": {"ENTITY_ID": "CRM_DEAL"},
-            "select": ["ID", "FIELD_NAME", "USER_TYPE_ID", "MULTIPLE", "LIST"],
-        })
-        matching = [f for f in (uf_by_entity if isinstance(uf_by_entity, list) else [])
-                    if f.get("FIELD_NAME") == field_id]
+        raw_deal = bitrix_client._call("crm.deal.get", {"id": "1350028"})
+        field_raw_value = raw_deal.get(field_id, "KEY_NOT_PRESENT_IN_DEAL")
+        all_uf_keys = [k for k in raw_deal if k.startswith("UF_")]
     except Exception as e:
-        uf_by_entity = str(e)
-        matching = []
+        field_raw_value = f"error: {e}"
+        all_uf_keys = []
 
     return {
         "field_id": field_id,
-        "from_deal_fields": deal_field_def,
-        "from_userfield_list_direct": uf_list,
-        "from_userfield_entity_match": matching,
+        "in_crm_deal_fields": in_deal_fields,
+        "in_crm_deal_fields_cat12": in_deal_fields_cat12,
+        "deal_field_definition": deal_field_cat_def or deal_field_def,
+        "list_type_uf_fields_in_cat12": list(uf_list_fields.keys()),
+        "raw_value_in_deal_1350028": field_raw_value,
+        "all_uf_keys_in_deal_1350028": all_uf_keys,
     }
 
 
