@@ -286,7 +286,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             equipment_map=equipment_map,
         )
         logger.info(
-            f"Parsed: subcategory={parsed.subcategory!r}, "
+            f"Parsed: subcategories={parsed.subcategories!r}, "
             f"budget_rub={parsed.budget_rub}, need_days={parsed.need_days}, "
             f"is_edm={parsed.is_edm}"
         )
