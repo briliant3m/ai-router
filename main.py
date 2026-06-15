@@ -209,6 +209,28 @@ def debug_enums():
     }
 
 
+@app.get("/debug-contact-fields")
+def debug_contact_fields(search: str = Query(None)):
+    """Возвращает все UF-поля контакта с их названиями. ?search=доп для фильтрации."""
+    raw_fields = bitrix_client._call("crm.contact.fields", {})
+    result = {}
+    for fid, fdef in raw_fields.items():
+        if not fid.startswith("UF_"):
+            continue
+        if not isinstance(fdef, dict):
+            continue
+        label = (fdef.get("EDIT_FORM_LABEL") or fdef.get("LIST_COLUMN_LABEL") or "")
+        if isinstance(label, dict):
+            label = label.get("ru") or label.get("en") or str(label)
+        if search and search.lower() not in (fid + label).lower():
+            continue
+        result[fid] = {
+            "label": label,
+            "type": fdef.get("USER_TYPE_ID") or fdef.get("FIELD_NAME"),
+        }
+    return {"total": len(result), "fields": result}
+
+
 @app.get("/debug-subcategory-field")
 def debug_subcategory_field():
     """Диагностика поля Подкатегория — ищет ID enum-значений всеми доступными методами."""
