@@ -305,8 +305,8 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             partner = result.selected_partner
 
             update_fields = {"STAGE_ID": partner.bitrix_stage_id}
-            if parsed.subcategory:
-                update_fields[settings.FIELD_SUBCATEGORY] = parsed.subcategory
+            if parsed.subcategories:
+                update_fields[settings.FIELD_SUBCATEGORY] = parsed.subcategories
 
             bitrix_client.update_deal(deal_id, update_fields)
             sheets_client.increment_count(partner.id)
@@ -316,7 +316,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
                 deal_id=deal_id,
                 deal_title=deal.title or "",
                 partner_name=partner.name,
-                subcategory=parsed.subcategory,
+                subcategories=parsed.subcategories,
                 budget_rub=parsed.budget_rub,
                 need_days=parsed.need_days,
                 region=deal.region,
@@ -324,8 +324,8 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             )
 
             parts = [f"Лид передан партнёру: {partner.name}"]
-            if parsed.subcategory:
-                parts.append(f"Подкатегория: {parsed.subcategory}")
+            if parsed.subcategories:
+                parts.append(f"Подкатегория: {', '.join(parsed.subcategories)}")
             if parsed.budget_rub:
                 parts.append(f"Распознанный бюджет: {parsed.budget_rub:,} руб.")
             if parsed.need_days:
@@ -340,8 +340,8 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
         else:
             # Партнёр не найден — оставляем сделку в текущей стадии, добавляем комментарий
             lines = ["Подходящий партнёр не найден.\n"]
-            if parsed.subcategory:
-                lines.append(f"Вид станка (нормализован): {parsed.subcategory}")
+            if parsed.subcategories:
+                lines.append(f"Вид станка (нормализован): {', '.join(parsed.subcategories)}")
             if parsed.budget_rub:
                 lines.append(f"Распознанный бюджет: {parsed.budget_rub:,} руб.")
             if parsed.need_days:
@@ -359,7 +359,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             telegram_client.notify_no_partner(
                 deal_id=deal_id,
                 deal_title=deal.title or "",
-                subcategory=parsed.subcategory,
+                subcategories=parsed.subcategories,
                 budget_rub=parsed.budget_rub,
                 region=deal.region,
                 rejection_reasons=result.rejection_reasons,

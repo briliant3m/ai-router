@@ -31,7 +31,7 @@ def notify_routed(
     deal_id: str,
     deal_title: str,
     partner_name: str,
-    subcategory: Optional[str],
+    subcategories: list,
     budget_rub: Optional[int],
     need_days: Optional[int],
     region: Optional[str],
@@ -41,8 +41,8 @@ def notify_routed(
         "✅ <b>Лид распределён</b>",
         f"Сделка: #{deal_id}  {deal_title or ''}".strip(),
     ]
-    if subcategory:
-        lines.append(f"Вид станка: {subcategory}")
+    if subcategories:
+        lines.append(f"Вид станка: {', '.join(subcategories)}")
     if region:
         lines.append(f"Регион: {region}")
     if budget_rub:
@@ -63,7 +63,7 @@ def notify_sheets_changed(changes: list) -> None:
 def notify_no_partner(
     deal_id: str,
     deal_title: str,
-    subcategory: Optional[str],
+    subcategories: list,
     budget_rub: Optional[int],
     region: Optional[str],
     rejection_reasons: Dict[str, str],
@@ -77,8 +77,8 @@ def notify_no_partner(
         lines.append(f"{alert_user}, нужно ручное распределение")
     lines.append("")
     lines.append(f"Сделка: #{deal_id}  {deal_title or ''}".strip())
-    if subcategory:
-        lines.append(f"Вид станка: {subcategory}")
+    if subcategories:
+        lines.append(f"Вид станка: {', '.join(subcategories)}")
     if region:
         lines.append(f"Регион: {region}")
     if budget_rub:

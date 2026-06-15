@@ -76,8 +76,8 @@ def parse_deal(
 ---
 Верни JSON строго следующей структуры:
 {{
-  "machine_type_id": "точное название из каталога выше или null если не нашёл",
-  "subcategory": "подкатегория из каталога или null",
+  "machine_type_id": "точное название ОСНОВНОГО станка из каталога или null если не нашёл",
+  "subcategories": ["подкатегория1", "подкатегория2"],
   "budget_rub": число_или_null,
   "need_days": число_или_null,
   "is_edm": true_или_false,
@@ -88,6 +88,8 @@ def parse_deal(
 }}
 
 ПРАВИЛА:
+- subcategories: массив подкатегорий из каталога для ВСЕХ упомянутых видов станков. Если клиент упомянул несколько типов — укажи подкатегорию каждого. Пустой массив [] если ничего не нашёл.
+- machine_type_id: только один — основной/первый упомянутый станок (используется для маршрутизации).
 - budget_rub: "2 млн" → 2000000, "700 тыс" → 700000, "примерно 1.5 млн" → 1500000. Если совсем неизвестно — null (не 0).
 - need_days: для диапазонов используй ВЕРХНЮЮ границу: "2–3 месяца" → 90, "3–4 месяца" → 120, "4–6 месяцев" → 180, "6 мес" → 180, "в ближайшее время" → 30, "без ограничений" → null.
 - is_edm: true если станок электроэрозионный / EDM / проволочный / эрозия / прожиг отверстий.
@@ -113,7 +115,7 @@ def parse_deal(
         data = json.loads(raw)
         return ParsedDeal(
             machine_type_id=data.get("machine_type_id"),
-            subcategory=data.get("subcategory"),
+            subcategories=data.get("subcategories") or [],
             budget_rub=data.get("budget_rub"),
             need_days=data.get("need_days"),
             is_edm=bool(data.get("is_edm", False)),

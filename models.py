@@ -14,7 +14,7 @@ class DealFields(BaseModel):
 
 class ParsedDeal(BaseModel):
     machine_type_id: Optional[str] = None   # точное название из equipment_map
-    subcategory: Optional[str] = None        # подкатегория из equipment_map
+    subcategories: List[str] = []            # подкатегории из equipment_map (может быть несколько)
     budget_rub: Optional[int] = None
     need_days: Optional[int] = None
     is_edm: bool = False
