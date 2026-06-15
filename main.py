@@ -219,14 +219,12 @@ def debug_contact_fields(search: str = Query(None)):
             continue
         if not isinstance(fdef, dict):
             continue
-        label = (fdef.get("EDIT_FORM_LABEL") or fdef.get("LIST_COLUMN_LABEL") or "")
-        if isinstance(label, dict):
-            label = label.get("ru") or label.get("en") or str(label)
+        label = fdef.get("formLabel") or fdef.get("listLabel") or fdef.get("filterLabel") or ""
         if search and search.lower() not in (fid + label).lower():
             continue
         result[fid] = {
             "label": label,
-            "type": fdef.get("USER_TYPE_ID") or fdef.get("FIELD_NAME"),
+            "type": fdef.get("type"),
         }
     return {"total": len(result), "fields": result}
 
