@@ -134,6 +134,54 @@ def get_today_counts() -> Dict[str, int]:
         return {}
 
 
+def log_dry_run_result(
+    deal_id: str,
+    title: Optional[str],
+    company: Optional[str],
+    region: Optional[str],
+    category: Optional[str],
+    machine_type: Optional[str],
+    budget_rub: Optional[int],
+    need_days: Optional[int],
+    recommended_partner: Optional[str],
+    rejection_reasons: Dict[str, str],
+    parse_notes: Optional[str],
+) -> None:
+    """Пишет результат анализа в лист dry_run_results (без изменений в Bitrix)."""
+    try:
+        from datetime import datetime
+        sheet = _client().open_by_key(settings.GOOGLE_SHEETS_ID)
+
+        try:
+            ws = sheet.worksheet("dry_run_results")
+        except gspread.exceptions.WorksheetNotFound:
+            ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=12)
+            ws.append_row([
+                "timestamp", "deal_id", "title", "company", "region",
+                "category", "machine_type", "budget_rub", "need_days",
+                "recommended_partner", "rejection_reasons", "parse_notes",
+            ])
+
+        reasons_str = "; ".join(f"{k}: {v}" for k, v in rejection_reasons.items()) if rejection_reasons else ""
+        ws.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            deal_id,
+            title or "",
+            company or "",
+            region or "",
+            category or "",
+            machine_type or "",
+            budget_rub if budget_rub is not None else "",
+            need_days if need_days is not None else "",
+            recommended_partner or "НЕ НАЙДЕН",
+            reasons_str,
+            parse_notes or "",
+        ])
+        logger.info(f"dry_run_results: deal {deal_id} → {recommended_partner or 'НЕ НАЙДЕН'}")
+    except Exception as e:
+        logger.error(f"Failed to log dry run result for {deal_id}: {e}")
+
+
 def increment_count(partner_id: str) -> None:
     try:
         sheet = _client().open_by_key(settings.GOOGLE_SHEETS_ID)

@@ -375,7 +375,59 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             today_counts=today_counts,
         )
 
-        # ── 5. Применяем результат ────────────────────────────────────────────
+        # ── 5. DRY RUN — только логируем, Bitrix не трогаем ─────────────────
+        if settings.DRY_RUN:
+            partner = result.selected_partner
+            partner_name = partner.name if partner else None
+            sheets_client.log_dry_run_result(
+                deal_id=deal_id,
+                title=deal.title,
+                company=deal.company,
+                region=deal.region,
+                category=deal.category,
+                machine_type=deal.machine_type,
+                budget_rub=parsed.budget_rub,
+                need_days=parsed.need_days,
+                recommended_partner=partner_name,
+                rejection_reasons=result.rejection_reasons,
+                parse_notes=parsed.parse_notes,
+            )
+            if partner:
+                telegram_client.notify_routed(
+                    deal_id=deal_id,
+                    deal_title=deal.title or "",
+                    partner_name=f"[ТЕСТ] {partner.name}",
+                    category=deal.category,
+                    machine_type=deal.machine_type,
+                    company=deal.company,
+                    subcategories=parsed.subcategories,
+                    budget_rub=parsed.budget_rub,
+                    need_days=parsed.need_days,
+                    region=deal.region,
+                    today_total=0,
+                )
+            else:
+                partner_names = {p.id: p.name for p in partners}
+                telegram_client.notify_no_partner(
+                    deal_id=deal_id,
+                    deal_title=f"[ТЕСТ] {deal.title or ''}",
+                    category=deal.category,
+                    machine_type=deal.machine_type,
+                    company=deal.company,
+                    subcategories=parsed.subcategories,
+                    budget_rub=parsed.budget_rub,
+                    region=deal.region,
+                    rejection_reasons=result.rejection_reasons,
+                    partner_names=partner_names,
+                )
+            logger.info(f"Deal {deal_id} [DRY RUN] → {partner_name or 'НЕ НАЙДЕН'}")
+            return JSONResponse({
+                "status": "dry_run",
+                "recommended_partner": partner_name,
+                "rejection_reasons": result.rejection_reasons,
+            })
+
+        # ── 6. Применяем результат ────────────────────────────────────────────
         if result.selected_partner:
             partner = result.selected_partner
 

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # TTL кэша данных из Sheets (секунды)
     SHEETS_CACHE_TTL: int = 300
 
+    # Если True — анализирует лиды, но не трогает Bitrix; результат пишется в лист dry_run_results
+    DRY_RUN: bool = False
+
     # Telegram-уведомления (необязательные)
     TG_TOKEN: str = ""
     TG_CHAT: str = ""
