@@ -157,8 +157,8 @@ def log_dry_run_result(
         except gspread.exceptions.WorksheetNotFound:
             ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=12)
             ws.append_row([
-                "timestamp", "deal_id", "title", "company", "region",
-                "category", "machine_type", "budget_rub", "need_days",
+                "timestamp", "deal_id", "title", "category", "machine_type",
+                "budget_rub", "need_days", "company", "region",
                 "recommended_partner", "rejection_reasons", "parse_notes",
             ])
 
@@ -167,12 +167,12 @@ def log_dry_run_result(
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             deal_id,
             title or "",
-            company or "",
-            region or "",
             category or "",
             machine_type or "",
             budget_rub if budget_rub is not None else "",
             need_days if need_days is not None else "",
+            company or "",
+            region or "",
             recommended_partner or "НЕ НАЙДЕН",
             reasons_str,
             parse_notes or "",
