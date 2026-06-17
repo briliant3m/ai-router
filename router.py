@@ -46,6 +46,24 @@ def select_partner(
 ) -> RoutingResult:
     rejection_reasons: Dict[str, str] = {}
 
+    # ── Приоритет: EDM → Доминик ─────────────────────────────────────────────
+    # Электроэрозионные станки всегда идут к Доминику, независимо от категории
+    if parsed.is_edm:
+        dominik = next((p for p in partners if p.id == "dominik"), None)
+        if dominik and dominik.daily_quota > 0:
+            dom_count = today_counts.get("dominik", 0)
+            if dom_count < dominik.daily_quota:
+                logger.info(f"Deal {deal.id}: EDM → Доминик (приоритетный маршрут)")
+                return RoutingResult(
+                    selected_partner=dominik,
+                    rejection_reasons={},
+                    parsed_deal=parsed,
+                )
+            else:
+                logger.warning(f"Deal {deal.id}: EDM, Доминик исчерпал квоту ({dom_count}/{dominik.daily_quota}) — обычная маршрутизация")
+        else:
+            logger.warning(f"Deal {deal.id}: EDM, Доминик на паузе — обычная маршрутизация")
+
     eq_entry = _find_equipment_entry(equipment_map, parsed.machine_type_id)
 
     candidates: List[Tuple[Partner, float]] = []
