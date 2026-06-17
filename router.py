@@ -66,13 +66,15 @@ def select_partner(
                 continue
 
         # ── 3. Карта оборудования ─────────────────────────────────────────────
-        if eq_entry:
+        if eq_entry is not None:
             eq_val = eq_entry.partners.get(pid, "-")
             if not _condition_met(eq_val, deal.machine_type or ""):
                 rejection_reasons[pid] = f"вид станка не принимается (условие: {eq_val})"
                 continue
-        # Если eq_entry не найден (Claude не смог сопоставить) — не блокируем по карте,
-        # другие фильтры (бюджет, категория) сработают.
+        elif pid != "ke":
+            # Тип станка не найден в карте — обычным партнёрам не передаём, только КЕ-фолбэк
+            rejection_reasons[pid] = "вид станка не найден в карте оборудования"
+            continue
 
         # ── 4. Регион ─────────────────────────────────────────────────────────
         if partner.regions and deal.region:
