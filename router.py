@@ -89,8 +89,9 @@ def select_partner(
             if not _condition_met(eq_val, deal.machine_type or ""):
                 rejection_reasons[pid] = f"вид станка не принимается (условие: {eq_val})"
                 continue
-        elif pid != "ke":
-            # Тип станка не найден в карте — обычным партнёрам не передаём, только КЕ-фолбэк
+        else:
+            # Тип станка не найден в карте — ни один обычный партнёр не получает лид,
+            # только КЕ через фолбэк (ниже)
             rejection_reasons[pid] = "вид станка не найден в карте оборудования"
             continue
 
@@ -134,10 +135,9 @@ def select_partner(
 
     if not candidates:
         # ── Фолбэк на Кросс-Экспорт ──────────────────────────────────────────
-        # Условие: оборудование не найдено в карте (тип неизвестен)
-        # ИЛИ категория — Металлообработка, но никто из партнёров не подошёл
-        is_metalworking = "металлообработка" in (deal.category or "").lower()
-        if eq_entry is None or is_metalworking:
+        # Только если тип станка вообще не найден в карте оборудования.
+        # Если в карте есть запись с КЕ = "-" — КЕ тоже не получает.
+        if eq_entry is None:
             ke = next((p for p in partners if p.id == "ke"), None)
             if ke and ke.daily_quota > 0:
                 # Фолбэк всё равно соблюдает срок потребности
@@ -146,8 +146,7 @@ def select_partner(
                 else:
                     ke_count = today_counts.get("ke", 0)
                     if ke_count < ke.daily_quota:
-                        reason = "оборудование не в карте" if eq_entry is None else "фолбэк Металлообработка"
-                        logger.info(f"Deal {deal.id}: КЕ fallback ({reason})")
+                        logger.info(f"Deal {deal.id}: КЕ fallback (оборудование не в карте)")
                         return RoutingResult(
                             selected_partner=ke,
                             rejection_reasons=rejection_reasons,
