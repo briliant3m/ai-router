@@ -120,17 +120,21 @@ def select_partner(
         if eq_entry is None or is_metalworking:
             ke = next((p for p in partners if p.id == "ke"), None)
             if ke and ke.daily_quota > 0:
-                ke_count = today_counts.get("ke", 0)
-                if ke_count < ke.daily_quota:
-                    reason = "оборудование не в карте" if eq_entry is None else "фолбэк Металлообработка"
-                    logger.info(f"Deal {deal.id}: КЕ fallback ({reason})")
-                    return RoutingResult(
-                        selected_partner=ke,
-                        rejection_reasons=rejection_reasons,
-                        parsed_deal=parsed,
-                    )
+                # Фолбэк всё равно соблюдает срок потребности
+                if parsed.need_days is not None and ke.max_need_days < 9999 and parsed.need_days > ke.max_need_days:
+                    rejection_reasons["ke"] = f"КЕ (фолбэк): срок {parsed.need_days} дн. > макс. {ke.max_need_days} дн."
                 else:
-                    rejection_reasons["ke"] = f"КЕ (фолбэк): квота исчерпана ({ke_count}/{ke.daily_quota})"
+                    ke_count = today_counts.get("ke", 0)
+                    if ke_count < ke.daily_quota:
+                        reason = "оборудование не в карте" if eq_entry is None else "фолбэк Металлообработка"
+                        logger.info(f"Deal {deal.id}: КЕ fallback ({reason})")
+                        return RoutingResult(
+                            selected_partner=ke,
+                            rejection_reasons=rejection_reasons,
+                            parsed_deal=parsed,
+                        )
+                    else:
+                        rejection_reasons["ke"] = f"КЕ (фолбэк): квота исчерпана ({ke_count}/{ke.daily_quota})"
             else:
                 rejection_reasons["ke"] = "КЕ (фолбэк): на паузе"
 
