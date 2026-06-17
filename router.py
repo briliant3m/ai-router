@@ -86,22 +86,6 @@ def select_partner(
         else:
             logger.warning(f"Deal {deal.id}: EDM, Доминик на паузе — обычная маршрутизация")
 
-    # ── Приоритет: Универсальный токарный/фрезерный → РСО ────────────────────
-    if parsed.is_universal:
-        rso = next((p for p in partners if p.id == "rso"), None)
-        if rso and rso.daily_quota > 0:
-            rso_count = today_counts.get("rso", 0)
-            if rso_count < rso.daily_quota:
-                logger.info(f"Deal {deal.id}: универсальный станок → РСО (приоритетный маршрут)")
-                return RoutingResult(
-                    selected_partner=rso,
-                    rejection_reasons={},
-                    parsed_deal=parsed,
-                )
-            else:
-                logger.warning(f"Deal {deal.id}: универсальный, РСО исчерпал квоту ({rso_count}/{rso.daily_quota}) — обычная маршрутизация")
-        else:
-            logger.warning(f"Deal {deal.id}: универсальный, РСО на паузе — обычная маршрутизация")
 
     # ── Определяем все типы станков для проверки ─────────────────────────────
     all_machine_ids = parsed.machine_type_ids if parsed.machine_type_ids else (
@@ -233,6 +217,18 @@ def select_partner(
             parsed_deal=parsed,
             alternatives_by_machine=alternatives,
         )
+
+    # Приоритет РСО для универсальных токарных/фрезерных — если РСО прошёл все фильтры
+    if parsed.is_universal:
+        rso_candidate = next((c for c in candidates if c[0].id == "rso"), None)
+        if rso_candidate:
+            selected = rso_candidate[0]
+            logger.info(f"Deal {deal.id} → РСО (приоритет для универсального станка, прошёл все фильтры)")
+            return RoutingResult(
+                selected_partner=selected,
+                rejection_reasons=rejection_reasons,
+                parsed_deal=parsed,
+            )
 
     # Round-robin: выбираем партнёра с наименьшим количеством лидов сегодня.
     candidates.sort(key=lambda x: (x[1], x[0].row_index))
