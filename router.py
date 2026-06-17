@@ -6,22 +6,22 @@ from models import DealFields, EquipmentEntry, ParsedDeal, Partner, RoutingResul
 logger = logging.getLogger(__name__)
 
 
-def _condition_met(eq_value: str, machine_type_raw: str) -> bool:
-    """Проверяет, выполняется ли условие партнёра из карты оборудования."""
+def _condition_met(eq_value: str, machine_type_name: str) -> bool:
+    """Проверяет условие из карты оборудования.
+    machine_type_name — название позиции из каталога (не сырой текст оператора).
+    """
     val = eq_value.strip().lower()
     if val == "+":
         return True
     if val in ("-", "", "none"):
         return False
-    # Условные значения — проверяем по тексту вида станка от оператора
-    mt = (machine_type_raw or "").lower()
+    mt = machine_type_name.lower()
     if "только с чпу" in val:
         return "чпу" in mt or "cnc" in mt
     if "только гидравлические" in val:
         return "гидравл" in mt
     if "автоматические" in val:
         return "автомат" in mt
-    # Любое другое условие — считаем что условие выполнено (перестраховка)
     return True
 
 
@@ -37,6 +37,29 @@ def _find_equipment_entry(
     return None
 
 
+def _compute_alternatives(
+    machine_ids: List[str],
+    partners: List[Partner],
+    equipment_map: List[EquipmentEntry],
+) -> Dict[str, List[str]]:
+    """Для каждого типа станка — список партнёров, которые его принимают (без учёта квоты/срока)."""
+    result = {}
+    for mid in machine_ids:
+        eq_e = _find_equipment_entry(equipment_map, mid)
+        if eq_e is None:
+            result[mid] = []
+            continue
+        eligible = []
+        for p in partners:
+            if p.daily_quota == 0:
+                continue
+            eq_val = eq_e.partners.get(p.id, "-")
+            if _condition_met(eq_val, mid):
+                eligible.append(p.name)
+        result[mid] = eligible
+    return result
+
+
 def select_partner(
     deal: DealFields,
     parsed: ParsedDeal,
@@ -47,7 +70,6 @@ def select_partner(
     rejection_reasons: Dict[str, str] = {}
 
     # ── Приоритет: EDM → Доминик ─────────────────────────────────────────────
-    # Электроэрозионные станки всегда идут к Доминику, независимо от категории
     if parsed.is_edm:
         dominik = next((p for p in partners if p.id == "dominik"), None)
         if dominik and dominik.daily_quota > 0:
@@ -64,9 +86,34 @@ def select_partner(
         else:
             logger.warning(f"Deal {deal.id}: EDM, Доминик на паузе — обычная маршрутизация")
 
-    eq_entry = _find_equipment_entry(equipment_map, parsed.machine_type_id)
+    # ── Приоритет: Универсальный токарный/фрезерный → РСО ────────────────────
+    if parsed.is_universal:
+        rso = next((p for p in partners if p.id == "rso"), None)
+        if rso and rso.daily_quota > 0:
+            rso_count = today_counts.get("rso", 0)
+            if rso_count < rso.daily_quota:
+                logger.info(f"Deal {deal.id}: универсальный станок → РСО (приоритетный маршрут)")
+                return RoutingResult(
+                    selected_partner=rso,
+                    rejection_reasons={},
+                    parsed_deal=parsed,
+                )
+            else:
+                logger.warning(f"Deal {deal.id}: универсальный, РСО исчерпал квоту ({rso_count}/{rso.daily_quota}) — обычная маршрутизация")
+        else:
+            logger.warning(f"Deal {deal.id}: универсальный, РСО на паузе — обычная маршрутизация")
 
-    candidates: List[Tuple[Partner, float]] = []
+    # ── Определяем все типы станков для проверки ─────────────────────────────
+    all_machine_ids = parsed.machine_type_ids if parsed.machine_type_ids else (
+        [parsed.machine_type_id] if parsed.machine_type_id else []
+    )
+    eq_entries: List[Tuple[str, Optional[EquipmentEntry]]] = [
+        (mid, _find_equipment_entry(equipment_map, mid)) for mid in all_machine_ids
+    ]
+    # True — все типы станков отсутствуют в карте (неизвестное оборудование)
+    all_not_in_map = bool(eq_entries) and all(e is None for _, e in eq_entries)
+
+    candidates: List[Tuple[Partner, int]] = []
 
     for partner in partners:
         pid = partner.id
@@ -83,17 +130,30 @@ def select_partner(
                 rejection_reasons[pid] = f"категория «{deal.category}» не в списке партнёра"
                 continue
 
-        # ── 3. Карта оборудования ─────────────────────────────────────────────
-        if eq_entry is not None:
-            eq_val = eq_entry.partners.get(pid, "-")
-            if not _condition_met(eq_val, deal.machine_type or ""):
-                rejection_reasons[pid] = f"вид станка не принимается (условие: {eq_val})"
+        # ── 3. Карта оборудования — ПРОВЕРЯЕМ ВСЕ ТИПЫ СТАНКОВ ───────────────
+        if eq_entries:
+            if all_not_in_map:
+                # Все типы не в карте — только КЕ через фолбэк (ниже)
+                rejection_reasons[pid] = "вид станка не найден в карте оборудования"
                 continue
-        else:
-            # Тип станка не найден в карте — ни один обычный партнёр не получает лид,
-            # только КЕ через фолбэк (ниже)
-            rejection_reasons[pid] = "вид станка не найден в карте оборудования"
-            continue
+            equipment_blocked = False
+            blocked_reasons = []
+            for mid, eq_e in eq_entries:
+                if eq_e is None:
+                    if pid != "ke":
+                        blocked_reasons.append(f"«{mid}» не в карте")
+                        equipment_blocked = True
+                        break
+                    # КЕ — неизвестный тип пропускаем (catch-all)
+                else:
+                    eq_val = eq_e.partners.get(pid, "-")
+                    if not _condition_met(eq_val, mid):
+                        blocked_reasons.append(f"«{mid}»: {eq_val}")
+                        equipment_blocked = True
+                        break
+            if equipment_blocked:
+                rejection_reasons[pid] = "не принимает: " + "; ".join(blocked_reasons)
+                continue
 
         # ── 4. Регион ─────────────────────────────────────────────────────────
         if partner.regions and deal.region:
@@ -115,7 +175,6 @@ def select_partner(
                 continue
 
         # ── 6. Бюджет (оценка Claude) ─────────────────────────────────────────
-        # Если бюджет не указан совсем — не фильтруем, передаём всем подходящим
         if parsed.budget_rub is not None:
             budget_ok = parsed.eligible_by_budget.get(pid)
             if budget_ok is False:
@@ -135,33 +194,47 @@ def select_partner(
 
     if not candidates:
         # ── Фолбэк на Кросс-Экспорт ──────────────────────────────────────────
-        # Только если тип станка вообще не найден в карте оборудования.
-        # Если в карте есть запись с КЕ = "-" — КЕ тоже не получает.
-        if eq_entry is None:
+        # Только если ВСЕ типы станков отсутствуют в карте оборудования.
+        # Если хотя бы один тип есть в карте и КЕ имеет "-" — фолбэк не запускается.
+        if all_not_in_map:
             ke = next((p for p in partners if p.id == "ke"), None)
             if ke and ke.daily_quota > 0:
-                # Фолбэк всё равно соблюдает срок потребности
-                if parsed.need_days is not None and ke.max_need_days < 9999 and parsed.need_days > ke.max_need_days:
-                    rejection_reasons["ke"] = f"КЕ (фолбэк): срок {parsed.need_days} дн. > макс. {ke.max_need_days} дн."
-                else:
-                    ke_count = today_counts.get("ke", 0)
-                    if ke_count < ke.daily_quota:
-                        logger.info(f"Deal {deal.id}: КЕ fallback (оборудование не в карте)")
-                        return RoutingResult(
-                            selected_partner=ke,
-                            rejection_reasons=rejection_reasons,
-                            parsed_deal=parsed,
-                        )
+                # Фолбэк проверяет категорию — КЕ делает только Металлообработку
+                if ke.categories and deal.category:
+                    cat_lower = deal.category.lower()
+                    if not any(c.lower() in cat_lower for c in ke.categories):
+                        rejection_reasons["ke"] = f"КЕ (фолбэк): категория «{deal.category}» не подходит"
+                        ke = None
+                if ke:
+                    if parsed.need_days is not None and ke.max_need_days < 9999 and parsed.need_days > ke.max_need_days:
+                        rejection_reasons["ke"] = f"КЕ (фолбэк): срок {parsed.need_days} дн. > макс. {ke.max_need_days} дн."
                     else:
-                        rejection_reasons["ke"] = f"КЕ (фолбэк): квота исчерпана ({ke_count}/{ke.daily_quota})"
+                        ke_count = today_counts.get("ke", 0)
+                        if ke_count < ke.daily_quota:
+                            logger.info(f"Deal {deal.id}: КЕ fallback (оборудование не в карте)")
+                            return RoutingResult(
+                                selected_partner=ke,
+                                rejection_reasons=rejection_reasons,
+                                parsed_deal=parsed,
+                            )
+                        else:
+                            rejection_reasons["ke"] = f"КЕ (фолбэк): квота исчерпана ({ke_count}/{ke.daily_quota})"
             else:
                 rejection_reasons["ke"] = "КЕ (фолбэк): на паузе"
 
+        # Для заявок с несколькими станками — собираем альтернативы
+        alternatives = None
+        if len(all_machine_ids) > 1:
+            alternatives = _compute_alternatives(all_machine_ids, partners, equipment_map)
+
         logger.warning(f"Deal {deal.id}: no eligible partner found")
-        return RoutingResult(rejection_reasons=rejection_reasons, parsed_deal=parsed)
+        return RoutingResult(
+            rejection_reasons=rejection_reasons,
+            parsed_deal=parsed,
+            alternatives_by_machine=alternatives,
+        )
 
     # Round-robin: выбираем партнёра с наименьшим количеством лидов сегодня.
-    # При равенстве — по порядку строки в таблице (row_index).
     candidates.sort(key=lambda x: (x[1], x[0].row_index))
     selected = candidates[0][0]
 

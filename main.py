@@ -482,9 +482,19 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
 
         else:
             # Партнёр не найден — оставляем сделку в текущей стадии, добавляем комментарий
-            lines = ["Подходящий партнёр не найден.\n"]
+            if result.alternatives_by_machine:
+                # Заявка с несколькими станками — нет единого партнёра
+                lines = ["❗ Единого партнёра нет — нет партнёра, который принимает ВСЁ оборудование из заявки.\n"]
+                lines.append("Кто может принять каждый тип оборудования:")
+                for machine, alt_names in result.alternatives_by_machine.items():
+                    if alt_names:
+                        lines.append(f"• {machine}: {', '.join(alt_names)}")
+                    else:
+                        lines.append(f"• {machine}: нет подходящих партнёров")
+            else:
+                lines = ["Подходящий партнёр не найден.\n"]
             if parsed.subcategories:
-                lines.append(f"Вид станка (нормализован): {', '.join(parsed.subcategories)}")
+                lines.append(f"\nВид станка (нормализован): {', '.join(parsed.subcategories)}")
             if parsed.budget_rub:
                 lines.append(f"Распознанный бюджет: {parsed.budget_rub:,} руб.")
             if parsed.need_days:

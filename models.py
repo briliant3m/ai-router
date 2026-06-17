@@ -15,11 +15,13 @@ class DealFields(BaseModel):
 
 
 class ParsedDeal(BaseModel):
-    machine_type_id: Optional[str] = None   # точное название из equipment_map
+    machine_type_id: Optional[str] = None   # первый/основной тип из equipment_map
+    machine_type_ids: List[str] = []         # ВСЕ типы станков из заявки (из equipment_map)
     subcategories: List[str] = []            # подкатегории из equipment_map (может быть несколько)
     budget_rub: Optional[int] = None
     need_days: Optional[int] = None
     is_edm: bool = False
+    is_universal: bool = False               # универсальный токарный/фрезерный → РСО
     # partner_id -> True/False/None (None = бюджет неизвестен, потенциально подходит)
     eligible_by_budget: Dict[str, Optional[bool]] = {}
     parse_notes: Optional[str] = None
@@ -52,6 +54,8 @@ class RoutingResult(BaseModel):
     selected_partner: Optional[Partner] = None
     rejection_reasons: Dict[str, str] = {}
     parsed_deal: Optional[ParsedDeal] = None
+    # Для заявок с несколькими станками без единого партнёра: {тип_станка: [имена партнёров]}
+    alternatives_by_machine: Optional[Dict[str, List[str]]] = None
 
 
 class WebhookPayload(BaseModel):
