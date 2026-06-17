@@ -141,8 +141,8 @@ def log_dry_run_result(
     region: Optional[str],
     category: Optional[str],
     machine_type: Optional[str],
-    budget_rub: Optional[int],
-    need_days: Optional[int],
+    budget_text: Optional[str],
+    timeline_text: Optional[str],
     recommended_partner: Optional[str],
     rejection_reasons: Dict[str, str],
     parse_notes: Optional[str],
@@ -158,7 +158,7 @@ def log_dry_run_result(
             ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=12)
             ws.append_row([
                 "timestamp", "deal_id", "title", "category", "machine_type",
-                "budget_rub", "need_days", "company", "region",
+                "budget", "timeline", "company", "region",
                 "recommended_partner", "rejection_reasons", "parse_notes",
             ])
 
@@ -169,8 +169,8 @@ def log_dry_run_result(
             title or "",
             category or "",
             machine_type or "",
-            budget_rub if budget_rub is not None else "",
-            need_days if need_days is not None else "",
+            budget_text or "",
+            timeline_text or "",
             company or "",
             region or "",
             recommended_partner or "НЕ НАЙДЕН",
