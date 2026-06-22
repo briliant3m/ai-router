@@ -134,12 +134,7 @@ def get_today_counts() -> Dict[str, int]:
         return {}
 
 
-HEADERS = [
-    "timestamp", "deal_id", "title", "category", "machine_type",
-    "budget", "timeline", "company", "region",
-    "recommended_partner", "rejection_reasons", "parse_notes",
-    "subcategory", "extra_comment", "phone",
-]
+NEW_COL_HEADERS = ["subcategory", "extra_comment", "phone"]  # P, Q, R
 
 
 def log_dry_run_result(
@@ -166,13 +161,20 @@ def log_dry_run_result(
         try:
             ws = sheet.worksheet("dry_run_results")
             current_headers = ws.row_values(1)
-            if len(current_headers) < len(HEADERS):
-                ws.update("A1", [HEADERS])
+            # Добавляем заголовки только в P1:R1, не трогая M, N, O (пользовательские столбцы)
+            if len(current_headers) < 18:
+                ws.update("P1:R1", [NEW_COL_HEADERS])
         except gspread.exceptions.WorksheetNotFound:
-            ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=len(HEADERS))
-            ws.append_row(HEADERS)
+            base_headers = [
+                "timestamp", "deal_id", "title", "category", "machine_type",
+                "budget", "timeline", "company", "region",
+                "recommended_partner", "rejection_reasons", "parse_notes",
+            ]
+            ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=18)
+            ws.append_row(base_headers + ["", "", ""] + NEW_COL_HEADERS)
 
         reasons_str = "; ".join(f"{k}: {v}" for k, v in rejection_reasons.items()) if rejection_reasons else ""
+        # Столбцы A–L: основные данные; M–O: пустые (пользовательские); P–R: новые поля
         ws.append_row([
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             deal_id,
@@ -186,9 +188,10 @@ def log_dry_run_result(
             recommended_partner or "НЕ НАЙДЕН",
             reasons_str,
             parse_notes or "",
-            subcategory or "",
-            extra_comment or "",
-            phone or "",
+            "", "", "",          # M, N, O — пользовательские столбцы
+            subcategory or "",   # P
+            extra_comment or "", # Q
+            phone or "",         # R
         ])
         logger.info(f"dry_run_results: deal {deal_id} → {recommended_partner or 'НЕ НАЙДЕН'}")
     except Exception as e:
