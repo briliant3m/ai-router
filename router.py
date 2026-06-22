@@ -69,6 +69,12 @@ def select_partner(
 ) -> RoutingResult:
     rejection_reasons: Dict[str, str] = {}
 
+    # Срок ≤7 месяцев (≤210 дней) → округляем до 180 дней для повышения шансов маршрутизации
+    effective_need_days = parsed.need_days
+    if effective_need_days is not None and 180 < effective_need_days <= 210:
+        logger.info(f"Deal {deal.id}: срок {parsed.need_days} дн. → 180 дн. (≤7 мес., округляем)")
+        effective_need_days = 180
+
     # ── Приоритет: EDM → Доминик ─────────────────────────────────────────────
     if parsed.is_edm:
         dominik = next((p for p in partners if p.id == "dominik"), None)
@@ -151,10 +157,10 @@ def select_partner(
                 continue
 
         # ── 5. Срок потребности ───────────────────────────────────────────────
-        if parsed.need_days is not None and partner.max_need_days < 9999:
-            if parsed.need_days > partner.max_need_days:
+        if effective_need_days is not None and partner.max_need_days < 9999:
+            if effective_need_days > partner.max_need_days:
                 rejection_reasons[pid] = (
-                    f"срок {parsed.need_days} дн. > макс. {partner.max_need_days} дн."
+                    f"срок {effective_need_days} дн. > макс. {partner.max_need_days} дн."
                 )
                 continue
 
@@ -178,24 +184,29 @@ def select_partner(
 
     if not candidates:
         # ── Фолбэк на Кросс-Экспорт ──────────────────────────────────────────
-        # Только если ВСЕ типы станков отсутствуют в карте оборудования.
-        # Если хотя бы один тип есть в карте и КЕ имеет "-" — фолбэк не запускается.
-        if all_not_in_map:
-            ke = next((p for p in partners if p.id == "ke"), None)
+        # Условия: оборудование не найдено в карте (all_not_in_map)
+        # ИЛИ металлообработка без подходящих партнёров (КЕ — catch-all для металла)
+        ke = next((p for p in partners if p.id == "ke"), None)
+        is_metal_for_ke = bool(
+            ke and ke.daily_quota > 0
+            and deal.category
+            and any(c.lower() in deal.category.lower() for c in ke.categories)
+        )
+        if all_not_in_map or is_metal_for_ke:
             if ke and ke.daily_quota > 0:
-                # Фолбэк проверяет категорию — КЕ делает только Металлообработку
+                ke_ok = True
                 if ke.categories and deal.category:
-                    cat_lower = deal.category.lower()
-                    if not any(c.lower() in cat_lower for c in ke.categories):
+                    if not any(c.lower() in deal.category.lower() for c in ke.categories):
                         rejection_reasons["ke"] = f"КЕ (фолбэк): категория «{deal.category}» не подходит"
-                        ke = None
-                if ke:
-                    if parsed.need_days is not None and ke.max_need_days < 9999 and parsed.need_days > ke.max_need_days:
-                        rejection_reasons["ke"] = f"КЕ (фолбэк): срок {parsed.need_days} дн. > макс. {ke.max_need_days} дн."
+                        ke_ok = False
+                if ke_ok:
+                    if effective_need_days is not None and ke.max_need_days < 9999 and effective_need_days > ke.max_need_days:
+                        rejection_reasons["ke"] = f"КЕ (фолбэк): срок {effective_need_days} дн. > макс. {ke.max_need_days} дн."
                     else:
                         ke_count = today_counts.get("ke", 0)
                         if ke_count < ke.daily_quota:
-                            logger.info(f"Deal {deal.id}: КЕ fallback (оборудование не в карте)")
+                            reason = "оборудование не в карте" if all_not_in_map else "металлообработка, нет других кандидатов"
+                            logger.info(f"Deal {deal.id}: КЕ fallback ({reason})")
                             return RoutingResult(
                                 selected_partner=ke,
                                 rejection_reasons=rejection_reasons,
@@ -205,6 +216,54 @@ def select_partner(
                             rejection_reasons["ke"] = f"КЕ (фолбэк): квота исчерпана ({ke_count}/{ke.daily_quota})"
             else:
                 rejection_reasons["ke"] = "КЕ (фолбэк): на паузе"
+
+        # ── Правило: единственный партнёр, blocked только по сроку → всё равно отправляем ──
+        timeline_exempt: List[Partner] = []
+        for partner in partners:
+            pid = partner.id
+            if partner.daily_quota == 0:
+                continue
+            if partner.categories and deal.category:
+                if not any(c.lower() in deal.category.lower() for c in partner.categories):
+                    continue
+            if eq_entries:
+                if all_not_in_map:
+                    continue  # КЕ-фолбэк уже обработал этот случай
+                blocked = False
+                for mid, eq_e in eq_entries:
+                    if eq_e is None:
+                        if pid != "ke":
+                            blocked = True
+                            break
+                    else:
+                        if not _condition_met(eq_e.partners.get(pid, "-"), mid):
+                            blocked = True
+                            break
+                if blocked:
+                    continue
+            if partner.regions and deal.region:
+                region_lower = deal.region.lower()
+                if not any(r.lower() in region_lower or region_lower in r.lower() for r in partner.regions):
+                    continue
+            if parsed.budget_rub is not None and parsed.eligible_by_budget.get(pid) is False:
+                continue
+            today_count = today_counts.get(pid, 0)
+            if today_count >= partner.daily_quota:
+                continue
+            # Партнёр прошёл все фильтры кроме срока — добавляем как кандидата
+            timeline_exempt.append(partner)
+
+        if len(timeline_exempt) == 1:
+            selected = timeline_exempt[0]
+            logger.info(
+                f"Deal {deal.id} → {selected.id} "
+                f"(единственный кандидат, срок {parsed.need_days} дн. игнорируется)"
+            )
+            return RoutingResult(
+                selected_partner=selected,
+                rejection_reasons=rejection_reasons,
+                parsed_deal=parsed,
+            )
 
         # Для заявок с несколькими станками — собираем альтернативы
         alternatives = None

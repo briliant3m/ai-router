@@ -327,6 +327,8 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             logger.info(f"Deal {deal_id} is on stage {current_stage!r}, not target {settings.TARGET_STAGE_ID!r} — skipping")
             return JSONResponse({"status": "skipped", "reason": "already_processed", "stage": current_stage})
         contact_id = raw.get("CONTACT_ID")
+        raw_phone = raw.get("CONTACT_PHONE")
+        phone_str = raw_phone[0].get("VALUE") if isinstance(raw_phone, list) and raw_phone else None
         deal = DealFields(
             id=deal_id,
             title=raw.get("TITLE"),
@@ -337,6 +339,7 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
             region=raw.get(settings.FIELD_REGION),
             company=raw.get(settings.FIELD_COMPANY),
             extra_comment=raw.get(settings.FIELD_COMMENT),
+            phone=phone_str,
         )
         logger.info(
             f"Deal {deal_id}: category={deal.category!r}, "
@@ -391,6 +394,9 @@ def handle_webhook(token: str = Query(None), deal_id: str = Query(None)):
                 recommended_partner=partner_name,
                 rejection_reasons=result.rejection_reasons,
                 parse_notes=parsed.parse_notes,
+                subcategory=", ".join(parsed.subcategories) if parsed.subcategories else None,
+                extra_comment=deal.extra_comment,
+                phone=deal.phone,
             )
             if partner:
                 telegram_client.notify_routed(

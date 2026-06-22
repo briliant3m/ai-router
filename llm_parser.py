@@ -79,6 +79,22 @@ def parse_deal(
         _months_ref_lines.append(f"  {label}: {d} дн.")
     months_ref = "\n".join(_months_ref_lines)
 
+    # Текущий сезон и его конец
+    _m = today.month
+    if _m in (12, 1, 2):
+        _cur_season_name, _cur_season_gen = "зима", "зимы"
+        _cur_season_end = _date(today.year + (1 if _m == 12 else 0), 3, 1)
+    elif _m in (3, 4, 5):
+        _cur_season_name, _cur_season_gen = "весна", "весны"
+        _cur_season_end = _date(today.year, 6, 1)
+    elif _m in (6, 7, 8):
+        _cur_season_name, _cur_season_gen = "лето", "лета"
+        _cur_season_end = _date(today.year, 9, 1)
+    else:
+        _cur_season_name, _cur_season_gen = "осень", "осени"
+        _cur_season_end = _date(today.year, 12, 1)
+    cur_season_end_days = _days(_cur_season_end)
+
     # Ближайшие сезоны
     _season_starts = {"лета": (6, 1), "осени": (9, 1), "зимы": (12, 1), "весны": (3, 1)}
     _season_lines = []
@@ -88,6 +104,9 @@ def parse_deal(
         if target <= today:
             target = _date(sy + 1, sm, sd)
         _season_lines.append(f"  до {name}: {_days(target)} дн.")
+    _season_lines.append(
+        f"  (сейчас {_cur_season_name} {today.year}, конец {_cur_season_gen}: {cur_season_end_days} дн.)"
+    )
     seasons_ref = "\n".join(_season_lines)
 
     active_partner_ids = [p.id for p in partners if p.daily_quota != 0]
@@ -152,7 +171,8 @@ def parse_deal(
         "до конца квартала" / "в этом квартале" → {days_to_quarter_end}
         "до конца года" / "в этом году" / "до нового года" / "к новому году" → {days_to_year_end}
         "до [месяц]" / "к [месяц]" / "в [месяц]" → соответствующее значение из справочника
-        "до лета/осени/зимы/весны" / "летом/осенью/зимой/весной" → из справочника сезонов
+        "до лета/осени/зимы/весны" / "летом/осенью/зимой/весной" (следующий сезон) → из справочника сезонов
+        "[сезон] [текущий год]" / "[сезон]" когда мы УЖЕ в этом сезоне → конец текущего сезона = {cur_season_end_days} дн. (сейчас {_cur_season_name} {today.year})
         "в следующем году" / "в следующем квартале" → значение из справочника + 90/365
     • Неопределённость: "не знает" / "не сказал" / "не определился" / "не указан" / "без ограничений" / "не горит" / "не срочно" / "когда-нибудь" → null
     • Любой другой текст — рассуждай по смыслу как человек, используй СПРАВОЧНИК ДАТ как точку отсчёта. Даже если формулировка нестандартная — попробуй оценить срок. null только если из текста вообще невозможно понять даже порядок (дни/недели/месяцы/годы).

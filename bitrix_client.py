@@ -100,6 +100,8 @@ def get_deal_enriched(deal_id: str) -> dict:
         try:
             contact = get_contact(str(contact_id))
             merged_uf.update({k: v for k, v in contact.items() if k.startswith("UF_")})
+            if contact.get("PHONE"):
+                merged_uf["CONTACT_PHONE"] = contact["PHONE"]
         except Exception as e:
             logger.warning(f"Could not fetch contact {contact_id}: {e}")
 

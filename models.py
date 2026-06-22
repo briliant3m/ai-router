@@ -12,6 +12,7 @@ class DealFields(BaseModel):
     region: Optional[str] = None
     company: Optional[str] = None
     extra_comment: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class ParsedDeal(BaseModel):

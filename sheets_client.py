@@ -134,6 +134,14 @@ def get_today_counts() -> Dict[str, int]:
         return {}
 
 
+HEADERS = [
+    "timestamp", "deal_id", "title", "category", "machine_type",
+    "budget", "timeline", "company", "region",
+    "recommended_partner", "rejection_reasons", "parse_notes",
+    "subcategory", "extra_comment", "phone",
+]
+
+
 def log_dry_run_result(
     deal_id: str,
     title: Optional[str],
@@ -146,6 +154,9 @@ def log_dry_run_result(
     recommended_partner: Optional[str],
     rejection_reasons: Dict[str, str],
     parse_notes: Optional[str],
+    subcategory: Optional[str] = None,
+    extra_comment: Optional[str] = None,
+    phone: Optional[str] = None,
 ) -> None:
     """Пишет результат анализа в лист dry_run_results (без изменений в Bitrix)."""
     try:
@@ -154,13 +165,12 @@ def log_dry_run_result(
 
         try:
             ws = sheet.worksheet("dry_run_results")
+            current_headers = ws.row_values(1)
+            if len(current_headers) < len(HEADERS):
+                ws.update("A1", [HEADERS])
         except gspread.exceptions.WorksheetNotFound:
-            ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=12)
-            ws.append_row([
-                "timestamp", "deal_id", "title", "category", "machine_type",
-                "budget", "timeline", "company", "region",
-                "recommended_partner", "rejection_reasons", "parse_notes",
-            ])
+            ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=len(HEADERS))
+            ws.append_row(HEADERS)
 
         reasons_str = "; ".join(f"{k}: {v}" for k, v in rejection_reasons.items()) if rejection_reasons else ""
         ws.append_row([
@@ -176,6 +186,9 @@ def log_dry_run_result(
             recommended_partner or "НЕ НАЙДЕН",
             reasons_str,
             parse_notes or "",
+            subcategory or "",
+            extra_comment or "",
+            phone or "",
         ])
         logger.info(f"dry_run_results: deal {deal_id} → {recommended_partner or 'НЕ НАЙДЕН'}")
     except Exception as e:
