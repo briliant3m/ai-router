@@ -134,7 +134,19 @@ def get_today_counts() -> Dict[str, int]:
         return {}
 
 
-NEW_COL_HEADERS = ["subcategory", "extra_comment", "phone"]  # P, Q, R
+DRY_RUN_SHEET = "dry_run_results 1"
+DRY_RUN_HEADERS = [
+    "timestamp", "phone", "deal_id", "category", "subcategory",
+    "machine_type", "budget", "timeline", "company", "extra_comment",
+    "region", "recommended_partner", "rejection_reasons", "parse_notes",
+]
+
+
+def _v(value) -> str:
+    """Возвращает значение или '-' если пусто."""
+    if value is None or str(value).strip() == "":
+        return "-"
+    return str(value)
 
 
 def log_dry_run_result(
@@ -153,47 +165,37 @@ def log_dry_run_result(
     extra_comment: Optional[str] = None,
     phone: Optional[str] = None,
 ) -> None:
-    """Пишет результат анализа в лист dry_run_results (без изменений в Bitrix)."""
+    """Пишет результат анализа в лист 'dry_run_results 1' (без изменений в Bitrix)."""
     try:
         from datetime import datetime
         sheet = _client().open_by_key(settings.GOOGLE_SHEETS_ID)
 
         try:
-            ws = sheet.worksheet("dry_run_results")
-            current_headers = ws.row_values(1)
-            # Добавляем заголовки только в P1:R1, не трогая M, N, O (пользовательские столбцы)
-            if len(current_headers) < 18:
-                ws.update("P1:R1", [NEW_COL_HEADERS])
+            ws = sheet.worksheet(DRY_RUN_SHEET)
+            if not ws.row_values(1):
+                ws.append_row(DRY_RUN_HEADERS)
         except gspread.exceptions.WorksheetNotFound:
-            base_headers = [
-                "timestamp", "deal_id", "title", "category", "machine_type",
-                "budget", "timeline", "company", "region",
-                "recommended_partner", "rejection_reasons", "parse_notes",
-            ]
-            ws = sheet.add_worksheet("dry_run_results", rows=1000, cols=18)
-            ws.append_row(base_headers + ["", "", ""] + NEW_COL_HEADERS)
+            ws = sheet.add_worksheet(DRY_RUN_SHEET, rows=1000, cols=14)
+            ws.append_row(DRY_RUN_HEADERS)
 
-        reasons_str = "; ".join(f"{k}: {v}" for k, v in rejection_reasons.items()) if rejection_reasons else ""
-        # Столбцы A–L: основные данные; M–O: пустые (пользовательские); P–R: новые поля
+        reasons_str = "; ".join(f"{k}: {v}" for k, v in rejection_reasons.items()) if rejection_reasons else "-"
         ws.append_row([
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            deal_id,
-            title or "",
-            category or "",
-            machine_type or "",
-            budget_text or "",
-            timeline_text or "",
-            company or "",
-            region or "",
-            recommended_partner or "НЕ НАЙДЕН",
-            reasons_str,
-            parse_notes or "",
-            "", "", "",          # M, N, O — пользовательские столбцы
-            subcategory or "",   # P
-            extra_comment or "", # Q
-            phone or "",         # R
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # A: timestamp
+            _v(phone),                                       # B: phone
+            _v(deal_id),                                     # C: deal_id
+            _v(category),                                    # D: category
+            _v(subcategory),                                 # E: subcategory
+            _v(machine_type),                                # F: machine_type
+            _v(budget_text),                                 # G: budget
+            _v(timeline_text),                               # H: timeline
+            _v(company),                                     # I: company
+            _v(extra_comment),                               # J: extra_comment
+            _v(region),                                      # K: region
+            recommended_partner or "НЕ НАЙДЕН",              # L: recommended_partner
+            reasons_str,                                     # M: rejection_reasons
+            _v(parse_notes),                                 # N: parse_notes
         ])
-        logger.info(f"dry_run_results: deal {deal_id} → {recommended_partner or 'НЕ НАЙДЕН'}")
+        logger.info(f"dry_run_results 1: deal {deal_id} → {recommended_partner or 'НЕ НАЙДЕН'}")
     except Exception as e:
         logger.error(f"Failed to log dry run result for {deal_id}: {e}")
 
