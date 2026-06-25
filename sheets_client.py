@@ -97,6 +97,7 @@ def _fetch_equipment_map() -> List[EquipmentEntry]:
                 "topstanki": str(row.get("topstanki", "-")),
                 "sps_techno": str(row.get("sps_techno", "-")),
                 "rso": str(row.get("rso", "-")),
+                "ms_grup": str(row.get("ms_grup", "-")),
             },
         ))
     logger.info(f"Loaded {len(result)} equipment map entries from Sheets")
